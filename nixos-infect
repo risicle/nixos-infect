@@ -47,7 +47,9 @@ EOF
 }
 EOF
 
-  [[ -n "$doNetConf" ]] && makeNetworkingConf || true
+  ([[ "$doNetConf" = "netplan" ]] && makeNetworkingConfNetplan) \
+    || ([[ -n "$doNetConf" ]] && makeNetworkingConf) \
+    || true
 }
 
 makeNetworkingConf() {
@@ -119,6 +121,71 @@ EOF
     $extraRules1
   '';
 }
+EOF
+}
+
+makeNetworkingConfNetplan() {
+  $yq eval '. as $item ireduce ({}; . * $item )' /etc/netplan/*.y*ml -j \
+    | jq -f /dev/fd/123 > /etc/nixos/networking.json 123<< "EOF"
+{
+  systemd: {
+    network: {
+      netdevs: (
+        .network.ethernets | with_entries(.value |= {
+          netdevConfig: {Name: ."set-name"},
+          matchConfig: {MACAddress: .match.macaddress}
+        })
+      )
+    }
+  },
+  networking: {
+    bonds: (
+      .network.bonds | with_entries(.value |= {
+        interfaces: .interfaces,
+        driverOptions: {
+          mode: .parameters.mode | tostring,
+          downdelay: .parameters."down-delay" | tostring,
+          lacp_rate: .parameters."lacp-rate" | tostring,
+          miimon: .parameters."mii-monitor-interval" | tostring,
+          xmit_hash_policy: .parameters."transmit-hash-policy" | tostring,
+          updelay: .parameters."up-delay" | tostring
+        }
+      })
+    ),
+    vlans: (
+      .network.vlans | with_entries(.value |= {id: .id, interface: .link})
+    ),
+    interfaces: (
+      (.network.ethernets + .network.bonds + .network.vlans) | (
+        with_entries(select(.value.addresses) | .value |= {
+          ipv4: {
+            addresses: [
+              .addresses[] | split("/") | {
+                address: .[0],
+                prefixLength: .[1] | tonumber
+              }
+            ]
+          }
+        })
+      ) * (
+        with_entries(select(.value.gateway4) | .value |= {
+          ipv4: {
+            routes: [{address: "0.0.0.0", prefixLength: 0, via: .gateway4}]
+          }
+        })
+      ) * (
+        with_entries(select(.value.mtu) | .value |= {mtu: .mtu})
+      ) * (
+        with_entries(select(.value.macaddress) | .value |= {macAddress: .macaddress})
+      )
+    ),
+    nameservers: .network[] | objects | .[] | select(.nameservers.addresses) | .nameservers.addresses | flatten
+  }
+}
+EOF
+
+  cat > /etc/nixos/networking.nix << "EOF"
+{ ... }: builtins.fromJSON (builtins.readFile ./networking.json)
 EOF
 }
 
@@ -199,10 +266,19 @@ checkEnv() {
   which curl  || fakeCurlUsingWget \
               || (which apt-get && apt-get update && apt-get install -y curl) \
               || true
+  which jq    || (which yum && yum install -y jq) \
+              || (which apt-get && apt-get update && apt-get install -y jq) \
+              || true
 
   [[ "$(whoami)" == "root" ]] || { echo "ERROR: Must run as root"; return 1; }
 
   req curl || req wget || { echo "ERROR: Missing both curl and wget"; return 1; }
+
+  # yq only used to convert netplan to json, because jq is just better
+  yq=$(mktemp /tmp/nixos-infect.XXXXX.yq)
+  curl -L https://github.com/mikefarah/yq/releases/download/v4.7.1/yq_linux_amd64 > $yq
+  chmod +x $yq
+
   req bzcat            || { echo "ERROR: Missing bzcat";              return 1; }
   req xzcat            || { echo "ERROR: Missing xzcat";              return 1; }
   req groupadd         || { echo "ERROR: Missing groupadd";           return 1; }
@@ -210,6 +286,7 @@ checkEnv() {
   req ip               || { echo "ERROR: Missing ip";                 return 1; }
   req awk              || { echo "ERROR: Missing awk";                return 1; }
   req cut              || { echo "ERROR: Missing cut";                return 1; }
+  req jq               || { echo "ERROR: Missing jq";                 return 1; }
 }
 
 infect() {
@@ -259,8 +336,11 @@ infect() {
   /nix/var/nix/profiles/system/bin/switch-to-configuration boot
 }
 
-[ "$PROVIDER" = "digitalocean" ] && doNetConf=y # digitalocean requires detailed network config to be generated
-
+if [ "$PROVIDER" = "phoenixnap-bmc" ] ; then
+  doNetConf='netplan'
+elif [ "$PROVIDER" = "digitalocean" ] ; then
+  doNetConf=y
+fi
 
 prepareEnv
 makeSwap # smallest (512MB) droplet needs extra memory!
