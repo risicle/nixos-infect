@@ -14,12 +14,10 @@ This script has successfully been tested on at least the follow hosting provider
 * [Interserver VPS](https://www.interserver.net/vps/)
 * [Tencent Cloud Lighthouse](https://cloud.tencent.com/product/lighthouse)
 * [OVHcloud](https://www.ovh.com/)
+* [Oracle Cloud Infrastructure](https://www.oracle.com/cloud/)
 
 Should you find that it works on your hoster,
 feel free to update this README and issue a pull request.
-
-> *NB:* OpenVZ-based virtualization providers are known not to work with `nixos-infect` (or any other OS takeover script).
-> This is core to how OpenVZ operates and cannot be resolved.
 
 ## Motivation
 
@@ -47,7 +45,7 @@ and most importantly, simply didn't work for me!
 
 4) run the script with:
 ```
-  curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | NIX_CHANNEL=nixos-20.09 bash -x
+  curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | NIX_CHANNEL=nixos-21.11 bash -x
 ```
 
 *NB*: This script wipes out the targeted host's root filesystem when it runs to completion.
@@ -57,14 +55,14 @@ and so it is advised to run with `bash -x`.
 
 ## Hoster notes:
 ### Digital Ocean
-You mmay utilize Digital Ocean's "user data" mechanism (found in the Web UI or HTTP API),
+You may utilize Digital Ocean's "user data" mechanism (found in the Web UI or HTTP API),
 and supply to it the following example yaml stanzas:
 
 ```yaml
 #cloud-config
 
 runcmd:
-  - curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | PROVIDER=digitalocean NIX_CHANNEL=nixos-20.09 bash 2>&1 | tee /tmp/infect.log
+  - curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | PROVIDER=digitalocean NIX_CHANNEL=nixos-21.11 bash 2>&1 | tee /tmp/infect.log
 ```
 
 #### Potential tweaks:
@@ -82,7 +80,7 @@ write_files:
       environment.systemPackages = with pkgs; [ vim ];
     }
 runcmd:
-  - curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | PROVIDER=digitalocean NIXOS_IMPORT=./host.nix NIX_CHANNEL=nixos-20.09 bash 2>&1 | tee /tmp/infect.log
+  - curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | PROVIDER=digitalocean NIXOS_IMPORT=./host.nix NIX_CHANNEL=nixos-21.11 bash 2>&1 | tee /tmp/infect.log
 ```
 
 
@@ -109,6 +107,7 @@ runcmd:
 |Ubuntu      |16.04.6 (LTS) x64|**success**|2020-03-30|
 |Ubuntu      |18.04.3 (LTS) x64|**success**|2020-03-30|
 |Ubuntu      |19.10 x64        |**success**|2020-03-30|
+|Ubuntu      |20.04 x64        |**success**|2022-03-23|
 
 ### Vultr
 
@@ -118,7 +117,7 @@ instantiate an Ubuntu box with the following "Startup Script":
 ```bash
 #!/bin/sh
 
-curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | NIX_CHANNEL=nixos-20.09 bash
+curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | NIX_CHANNEL=nixos-21.11 bash
 ```
 
 Allow for a few minutes over the usual Ubuntu deployment time for NixOS to download & install itself.
@@ -137,12 +136,13 @@ When creating a server provide the following script as "User data":
 ```
 #!/bin/sh
 
-curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | NIX_CHANNEL=nixos-20.09 bash 2>&1 | tee /tmp/infect.log
+curl https://raw.githubusercontent.com/elitak/nixos-infect/master/nixos-infect | NIX_CHANNEL=nixos-21.11 bash 2>&1 | tee /tmp/infect.log
 ```
 
 #### Tested on
 |Distribution|       Name      | Status    | test date|
 |------------|-----------------|-----------|----------|
+|Debian      | 11              |**success**|2021-11-26|
 |Ubuntu      | 20.04 x64       |**success**|(Unknown) |
 
 ### InterServer VPS
@@ -175,3 +175,24 @@ Before executing the install script, you may need to check your mounts with `df 
 |Distribution|       Name        | Status    | test date|
 |------------|-------------------|-----------|----------|
 |Arch Linux  | Arch Linux x86-64 |**success**|2021-03-25|
+|Debian      | 10                |**success**|2021-04-29|
+|Debian      | 11                |**success**|2021-11-17|
+
+### Oracle Cloud Infrastructure
+Tested for both VM.Standard.E2.1.Micro (x86) and VM.Standard.A1.Flex (AArch64) instances.
+#### Tested on
+|Distribution|       Name      | Status    | test date|
+|------------|-----------------|-----------|----------|
+|Oracle Linux| 7.9             |**success**|2021-05-31|
+|Ubuntu      | 20.04           |**success**|2022-03-23|
+
+### Aliyun ECS
+
+Aliyun ECS tested on ecs.s6-c1m2.large, region **cn-shanghai**, needs a little bit tweaks:
+
+- replace nix binary cache with [tuna mirror](https://mirrors.tuna.tsinghua.edu.cn/help/nix/) (with instructions in the page)
+
+#### Tested on
+|Distribution|       Name      | Status    | test date|
+|------------|-----------------|-----------|----------|
+|Ubuntu      | 20.04           |**success**|2021-12-28|
