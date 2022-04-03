@@ -6,7 +6,7 @@ product. The main addition is network config conversion from netplan to NixOS, h
 the bonding and vlan setup used by PhoenixNAP.
 
 This has been tested on Ubuntu installations with SSD and NVMe disks, dual-gigabit
-and dual-10-gigabit ethernet interfaces.
+and dual-10-gigabit ethernet interfaces, both BIOS and EFI booting.
 
 Set the `PROVIDER` environment variable to `phoenixnap-bmc` to activate this mode.
 
