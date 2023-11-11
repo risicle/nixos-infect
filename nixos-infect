@@ -192,6 +192,39 @@ makeNetworkingConfNetplan() {
           }
         })
       ) * (
+        with_entries(select(.value.routes) | .value |= {
+          ipv4: {
+            routes: [
+              .routes[] | (
+                {
+                  address: (if
+                      .to == "default"
+                    then
+                      "0.0.0.0"
+                    else
+                      .to
+                    end | split("/")[0]),
+                  prefixLength: (if
+                      .to == "default"
+                    then
+                      0
+                    else
+                      (if
+                        .to | contains("/")
+                      then
+                        .to | split("/")[1] | tonumber
+                      else
+                        0
+                      end)
+                    end),
+                }
+                + (if .via then {via: .via} else {} end)
+                + (if .type then {type: .type} else {} end)
+              )
+            ]
+          }
+        })
+      ) * (
         with_entries(select(.value.mtu) | .value |= {mtu: .mtu})
       ) * (
         with_entries(select(.value.macaddress) | .value |= {macAddress: .macaddress})
